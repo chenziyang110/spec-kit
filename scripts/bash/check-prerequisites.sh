@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
 
-# Consolidated prerequisite checking script
+# 统一的前置条件检查脚本
 #
-# This script provides unified prerequisite checking for Spec-Driven Development workflow.
-# It replaces the functionality previously spread across multiple scripts.
+# 该脚本为规格驱动开发工作流提供统一的前置条件检查能力。
+# 它替代了之前分散在多个脚本中的相关功能。
 #
-# Usage: ./check-prerequisites.sh [OPTIONS]
+# 用法：./check-prerequisites.sh [OPTIONS]
 #
-# OPTIONS:
-#   --json              Output in JSON format
-#   --require-tasks     Require tasks.md to exist (for implementation phase)
-#   --include-tasks     Include tasks.md in AVAILABLE_DOCS list
-#   --paths-only        Only output path variables (no validation)
-#   --help, -h          Show help message
+# 参数：
+#   --json              以 JSON 格式输出
+#   --require-tasks     要求 tasks.md 必须存在（用于实现阶段）
+#   --include-tasks     将 tasks.md 包含进 AVAILABLE_DOCS 列表
+#   --paths-only        仅输出路径变量（不做校验）
+#   --help, -h          显示帮助信息
 #
-# OUTPUTS:
-#   JSON mode: {"FEATURE_DIR":"...", "AVAILABLE_DOCS":["..."]}
-#   Text mode: FEATURE_DIR:... \n AVAILABLE_DOCS: \n ✓/✗ file.md
-#   Paths only: REPO_ROOT: ... \n BRANCH: ... \n FEATURE_DIR: ... etc.
+# 输出：
+#   JSON 模式：{"FEATURE_DIR":"...", "AVAILABLE_DOCS":["..."]}
+#   文本模式：FEATURE_DIR:... \n AVAILABLE_DOCS: \n ✓/✗ file.md
+#   仅路径模式：REPO_ROOT: ... \n BRANCH: ... \n FEATURE_DIR: ... 等
 
 set -e
 
-# Parse command line arguments
+# 解析命令行参数
 JSON_MODE=false
 REQUIRE_TASKS=false
 INCLUDE_TASKS=false
@@ -74,20 +74,20 @@ EOF
     esac
 done
 
-# Source common functions
+# 引入公共函数
 SCRIPT_DIR="$(CDPATH="" cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
-# Get feature paths and validate branch
+# 获取功能路径并校验当前分支
 _paths_output=$(get_feature_paths) || { echo "ERROR: Failed to resolve feature paths" >&2; exit 1; }
 eval "$_paths_output"
 unset _paths_output
 check_feature_branch "$CURRENT_BRANCH" "$HAS_GIT" || exit 1
 
-# If paths-only mode, output paths and exit (support JSON + paths-only combined)
+# 如果是仅路径模式，则输出路径后退出（支持 JSON + paths-only 组合）
 if $PATHS_ONLY; then
     if $JSON_MODE; then
-        # Minimal JSON paths payload (no validation performed)
+        # 最小化 JSON 路径载荷（不执行校验）
         if has_jq; then
             jq -cn \
                 --arg repo_root "$REPO_ROOT" \
@@ -112,7 +112,7 @@ if $PATHS_ONLY; then
     exit 0
 fi
 
-# Validate required directories and files
+# 校验必需的目录和文件
 if [[ ! -d "$FEATURE_DIR" ]]; then
     echo "ERROR: Feature directory not found: $FEATURE_DIR" >&2
     echo "Run /speckit.specify first to create the feature structure." >&2
@@ -125,35 +125,35 @@ if [[ ! -f "$IMPL_PLAN" ]]; then
     exit 1
 fi
 
-# Check for tasks.md if required
+# 如果要求 tasks.md，则检查其是否存在
 if $REQUIRE_TASKS && [[ ! -f "$TASKS" ]]; then
     echo "ERROR: tasks.md not found in $FEATURE_DIR" >&2
     echo "Run /speckit.tasks first to create the task list." >&2
     exit 1
 fi
 
-# Build list of available documents
+# 构建可用文档列表
 docs=()
 
-# Always check these optional docs
+# 始终检查这些可选文档
 [[ -f "$RESEARCH" ]] && docs+=("research.md")
 [[ -f "$DATA_MODEL" ]] && docs+=("data-model.md")
 
-# Check contracts directory (only if it exists and has files)
+# 检查 contracts 目录（仅当目录存在且其中有文件时）
 if [[ -d "$CONTRACTS_DIR" ]] && [[ -n "$(ls -A "$CONTRACTS_DIR" 2>/dev/null)" ]]; then
     docs+=("contracts/")
 fi
 
 [[ -f "$QUICKSTART" ]] && docs+=("quickstart.md")
 
-# Include tasks.md if requested and it exists
+# 如果请求包含 tasks.md 且文件存在，则加入列表
 if $INCLUDE_TASKS && [[ -f "$TASKS" ]]; then
     docs+=("tasks.md")
 fi
 
-# Output results
+# 输出结果
 if $JSON_MODE; then
-    # Build JSON array of documents
+    # 构建文档的 JSON 数组
     if has_jq; then
         if [[ ${#docs[@]} -eq 0 ]]; then
             json_docs="[]"
@@ -174,11 +174,11 @@ if $JSON_MODE; then
         printf '{"FEATURE_DIR":"%s","AVAILABLE_DOCS":%s}\n' "$(json_escape "$FEATURE_DIR")" "$json_docs"
     fi
 else
-    # Text output
+    # 文本输出
     echo "FEATURE_DIR:$FEATURE_DIR"
     echo "AVAILABLE_DOCS:"
     
-    # Show status of each potential document
+    # 显示每个潜在文档的状态
     check_file "$RESEARCH" "research.md"
     check_file "$DATA_MODEL" "data-model.md"
     check_dir "$CONTRACTS_DIR" "contracts/"

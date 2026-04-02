@@ -25,7 +25,7 @@ while [ $i -le $# ]; do
             fi
             i=$((i + 1))
             next_arg="${!i}"
-            # Check if the next argument is another option (starts with --)
+            # 检查下一个参数是否其实是另一个选项（以 -- 开头）
             if [[ "$next_arg" == --* ]]; then
                 echo 'Error: --short-name requires a value' >&2
                 exit 1
@@ -78,14 +78,14 @@ if [ -z "$FEATURE_DESCRIPTION" ]; then
     exit 1
 fi
 
-# Trim whitespace and validate description is not empty (e.g., user passed only whitespace)
+# 去除首尾空白，并校验描述不为空（例如用户只传入了空白字符）
 FEATURE_DESCRIPTION=$(echo "$FEATURE_DESCRIPTION" | xargs)
 if [ -z "$FEATURE_DESCRIPTION" ]; then
     echo "Error: Feature description cannot be empty or contain only whitespace" >&2
     exit 1
 fi
 
-# Function to get highest number from specs directory
+# 获取 specs 目录中最大编号的函数
 get_highest_from_specs() {
     local specs_dir="$1"
     local highest=0
@@ -94,7 +94,7 @@ get_highest_from_specs() {
         for dir in "$specs_dir"/*; do
             [ -d "$dir" ] || continue
             dirname=$(basename "$dir")
-            # Match sequential prefixes (>=3 digits), but skip timestamp dirs.
+            # 匹配顺序编号前缀（>=3 位数字），但跳过时间戳目录
             if echo "$dirname" | grep -Eq '^[0-9]{3,}-' && ! echo "$dirname" | grep -Eq '^[0-9]{8}-[0-9]{6}-'; then
                 number=$(echo "$dirname" | grep -Eo '^[0-9]+')
                 number=$((10#$number))
@@ -108,19 +108,19 @@ get_highest_from_specs() {
     echo "$highest"
 }
 
-# Function to get highest number from git branches
+# 获取 git 分支中最大编号的函数
 get_highest_from_branches() {
     local highest=0
     
-    # Get all branches (local and remote)
+    # 获取所有分支（本地 + 远端）
     branches=$(git branch -a 2>/dev/null || echo "")
     
     if [ -n "$branches" ]; then
         while IFS= read -r branch; do
-            # Clean branch name: remove leading markers and remote prefixes
+            # 清洗分支名：移除前导标记和远端前缀
             clean_branch=$(echo "$branch" | sed 's/^[* ]*//; s|^remotes/[^/]*/||')
             
-            # Extract sequential feature number (>=3 digits), skip timestamp branches.
+            # 提取顺序功能编号（>=3 位数字），并跳过时间戳分支
             if echo "$clean_branch" | grep -Eq '^[0-9]{3,}-' && ! echo "$clean_branch" | grep -Eq '^[0-9]{8}-[0-9]{6}-'; then
                 number=$(echo "$clean_branch" | grep -Eo '^[0-9]+' || echo "0")
                 number=$((10#$number))
@@ -134,42 +134,42 @@ get_highest_from_branches() {
     echo "$highest"
 }
 
-# Function to check existing branches (local and remote) and return next available number
+# 检查现有分支（本地和远端）并返回下一个可用编号的函数
 check_existing_branches() {
     local specs_dir="$1"
 
-    # Fetch all remotes to get latest branch info (suppress errors if no remotes)
+    # 获取所有远端信息以拿到最新分支状态（如果没有远端则忽略错误）
     git fetch --all --prune >/dev/null 2>&1 || true
 
-    # Get highest number from ALL branches (not just matching short name)
+    # 从所有分支中取最大编号（不只限于匹配当前短名的分支）
     local highest_branch=$(get_highest_from_branches)
 
-    # Get highest number from ALL specs (not just matching short name)
+    # 从所有 specs 中取最大编号（不只限于匹配当前短名的规格）
     local highest_spec=$(get_highest_from_specs "$specs_dir")
 
-    # Take the maximum of both
+    # 取二者中的最大值
     local max_num=$highest_branch
     if [ "$highest_spec" -gt "$max_num" ]; then
         max_num=$highest_spec
     fi
 
-    # Return next number
+    # 返回下一个编号
     echo $((max_num + 1))
 }
 
-# Function to clean and format a branch name
+# 用于清洗并格式化分支名的函数
 clean_branch_name() {
     local name="$1"
     echo "$name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | sed 's/^-//' | sed 's/-$//'
 }
 
-# Resolve repository root using common.sh functions which prioritize .specify over git
+# 使用 common.sh 中优先 .specify 的逻辑来解析仓库根目录
 SCRIPT_DIR="$(CDPATH="" cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 REPO_ROOT=$(get_repo_root)
 
-# Check if git is available at this repo root (not a parent)
+# 检查该仓库根目录是否可用 git（而不是误用父目录）
 if has_git; then
     HAS_GIT=true
 else
@@ -181,34 +181,34 @@ cd "$REPO_ROOT"
 SPECS_DIR="$REPO_ROOT/specs"
 mkdir -p "$SPECS_DIR"
 
-# Function to generate branch name with stop word filtering and length filtering
+# 生成分支名的函数：带停用词过滤和长度过滤
 generate_branch_name() {
     local description="$1"
     
-    # Common stop words to filter out
+    # 需要过滤掉的常见停用词
     local stop_words="^(i|a|an|the|to|for|of|in|on|at|by|with|from|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|should|could|can|may|might|must|shall|this|that|these|those|my|your|our|their|want|need|add|get|set)$"
     
-    # Convert to lowercase and split into words
+    # 转为小写并拆分成单词
     local clean_name=$(echo "$description" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/ /g')
     
-    # Filter words: remove stop words and words shorter than 3 chars (unless they're uppercase acronyms in original)
+    # 过滤单词：去掉停用词和少于 3 个字符的单词（除非它们在原文中是大写缩写）
     local meaningful_words=()
     for word in $clean_name; do
-        # Skip empty words
+        # 跳过空单词
         [ -z "$word" ] && continue
         
-        # Keep words that are NOT stop words AND (length >= 3 OR are potential acronyms)
+        # 保留非停用词，且满足（长度 >= 3 或可能是缩写）的单词
         if ! echo "$word" | grep -qiE "$stop_words"; then
             if [ ${#word} -ge 3 ]; then
                 meaningful_words+=("$word")
             elif echo "$description" | grep -q "\b${word^^}\b"; then
-                # Keep short words if they appear as uppercase in original (likely acronyms)
+                # 如果短词在原文中以大写出现，则保留（大概率是缩写）
                 meaningful_words+=("$word")
             fi
         fi
     done
     
-    # If we have meaningful words, use first 3-4 of them
+    # 如果筛出了有意义的单词，则使用前 3-4 个
     if [ ${#meaningful_words[@]} -gt 0 ]; then
         local max_words=3
         if [ ${#meaningful_words[@]} -eq 4 ]; then max_words=4; fi
@@ -223,61 +223,61 @@ generate_branch_name() {
         done
         echo "$result"
     else
-        # Fallback to original logic if no meaningful words found
+        # 如果没有筛出有意义的单词，则回退到原始逻辑
         local cleaned=$(clean_branch_name "$description")
         echo "$cleaned" | tr '-' '\n' | grep -v '^$' | head -3 | tr '\n' '-' | sed 's/-$//'
     fi
 }
 
-# Generate branch name
+# 生成分支名
 if [ -n "$SHORT_NAME" ]; then
-    # Use provided short name, just clean it up
+    # 使用用户提供的短名，只做清洗
     BRANCH_SUFFIX=$(clean_branch_name "$SHORT_NAME")
 else
-    # Generate from description with smart filtering
+    # 根据描述智能过滤后生成
     BRANCH_SUFFIX=$(generate_branch_name "$FEATURE_DESCRIPTION")
 fi
 
-# Warn if --number and --timestamp are both specified
+# 如果同时指定了 --number 和 --timestamp，则给出警告
 if [ "$USE_TIMESTAMP" = true ] && [ -n "$BRANCH_NUMBER" ]; then
     >&2 echo "[specify] Warning: --number is ignored when --timestamp is used"
     BRANCH_NUMBER=""
 fi
 
-# Determine branch prefix
+# 确定分支前缀
 if [ "$USE_TIMESTAMP" = true ]; then
     FEATURE_NUM=$(date +%Y%m%d-%H%M%S)
     BRANCH_NAME="${FEATURE_NUM}-${BRANCH_SUFFIX}"
 else
-    # Determine branch number
+    # 确定分支编号
     if [ -z "$BRANCH_NUMBER" ]; then
         if [ "$HAS_GIT" = true ]; then
-            # Check existing branches on remotes
+            # 检查远端中的现有分支
             BRANCH_NUMBER=$(check_existing_branches "$SPECS_DIR")
         else
-            # Fall back to local directory check
+            # 回退到本地目录检查
             HIGHEST=$(get_highest_from_specs "$SPECS_DIR")
             BRANCH_NUMBER=$((HIGHEST + 1))
         fi
     fi
 
-    # Force base-10 interpretation to prevent octal conversion (e.g., 010 → 8 in octal, but should be 10 in decimal)
+    # 强制按十进制解释，避免出现八进制转换（例如 010 在八进制下会变成 8，但这里应当是十进制 10）
     FEATURE_NUM=$(printf "%03d" "$((10#$BRANCH_NUMBER))")
     BRANCH_NAME="${FEATURE_NUM}-${BRANCH_SUFFIX}"
 fi
 
-# GitHub enforces a 244-byte limit on branch names
-# Validate and truncate if necessary
+# GitHub 对分支名有 244 字节限制
+# 如有需要，进行校验并截断
 MAX_BRANCH_LENGTH=244
 if [ ${#BRANCH_NAME} -gt $MAX_BRANCH_LENGTH ]; then
-    # Calculate how much we need to trim from suffix
-    # Account for prefix length: timestamp (15) + hyphen (1) = 16, or sequential (3) + hyphen (1) = 4
+    # 计算后缀需要裁剪多少
+    # 需要考虑前缀长度：时间戳（15）+ 连字符（1）= 16；顺序编号（3）+ 连字符（1）= 4
     PREFIX_LENGTH=$(( ${#FEATURE_NUM} + 1 ))
     MAX_SUFFIX_LENGTH=$((MAX_BRANCH_LENGTH - PREFIX_LENGTH))
     
-    # Truncate suffix at word boundary if possible
+    # 尽量在单词边界处截断后缀
     TRUNCATED_SUFFIX=$(echo "$BRANCH_SUFFIX" | cut -c1-$MAX_SUFFIX_LENGTH)
-    # Remove trailing hyphen if truncation created one
+    # 如果截断后产生了尾随连字符，则将其移除
     TRUNCATED_SUFFIX=$(echo "$TRUNCATED_SUFFIX" | sed 's/-$//')
     
     ORIGINAL_BRANCH_NAME="$BRANCH_NAME"
@@ -290,10 +290,10 @@ fi
 
 if [ "$HAS_GIT" = true ]; then
     if ! git checkout -b "$BRANCH_NAME" 2>/dev/null; then
-        # Check if branch already exists
+        # 检查分支是否已存在
         if git branch --list "$BRANCH_NAME" | grep -q .; then
             if [ "$ALLOW_EXISTING" = true ]; then
-                # Switch to the existing branch instead of failing
+                # 切换到已有分支，而不是直接失败
                 if ! git checkout "$BRANCH_NAME" 2>/dev/null; then
                     >&2 echo "Error: Failed to switch to existing branch '$BRANCH_NAME'. Please resolve any local changes or conflicts and try again."
                     exit 1
@@ -328,7 +328,7 @@ if [ ! -f "$SPEC_FILE" ]; then
     fi
 fi
 
-# Inform the user how to persist the feature variable in their own shell
+# 提示用户如何在自己的 shell 中持久化该功能变量
 printf '# To persist: export SPECIFY_FEATURE=%q\n' "$BRANCH_NAME" >&2
 
 if $JSON_MODE; then

@@ -1,18 +1,18 @@
 #!/usr/bin/env pwsh
 <#!
 .SYNOPSIS
-Update agent context files with information from plan.md (PowerShell version)
+使用 plan.md 中的信息更新 agent 上下文文件（PowerShell 版）
 
 .DESCRIPTION
-Mirrors the behavior of scripts/bash/update-agent-context.sh:
- 1. Environment Validation
- 2. Plan Data Extraction
- 3. Agent File Management (create from template or update existing)
- 4. Content Generation (technology stack, recent changes, timestamp)
- 5. Multi-Agent Support (claude, gemini, copilot, cursor-agent, qwen, opencode, codex, windsurf, junie, kilocode, auggie, roo, codebuddy, amp, shai, tabnine, kiro-cli, agy, bob, vibe, qodercli, kimi, trae, pi, iflow, generic)
+与 scripts/bash/update-agent-context.sh 的行为保持一致：
+ 1. 环境校验
+ 2. 计划数据提取
+ 3. Agent 文件管理（从模板创建或更新已有文件）
+ 4. 内容生成（技术栈、最近变更、时间戳）
+ 5. 多 Agent 支持（claude、gemini、copilot、cursor-agent、qwen、opencode、codex、windsurf、junie、kilocode、auggie、roo、codebuddy、amp、shai、tabnine、kiro-cli、agy、bob、vibe、qodercli、kimi、trae、pi、iflow、generic）
 
 .PARAMETER AgentType
-Optional agent key to update a single agent. If omitted, updates all existing agent files (creating a default Claude file if none exist).
+可选的 agent key，用于只更新单个 agent。若省略，则更新所有已有 agent 文件（如果不存在任何文件，则默认创建 Claude 文件）。
 
 .EXAMPLE
 ./update-agent-context.ps1 -AgentType claude
@@ -21,7 +21,7 @@ Optional agent key to update a single agent. If omitted, updates all existing ag
 ./update-agent-context.ps1   # Updates all existing agent files
 
 .NOTES
-Relies on common helper functions in common.ps1
+依赖 common.ps1 中的公共辅助函数
 #>
 param(
     [Parameter(Position=0)]
@@ -31,11 +31,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# Import common helpers
+# 导入公共辅助函数
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $ScriptDir 'common.ps1')
 
-# Acquire environment paths
+# 获取环境路径
 $envData = Get-FeaturePathsEnv
 $REPO_ROOT     = $envData.REPO_ROOT
 $CURRENT_BRANCH = $envData.CURRENT_BRANCH
@@ -43,7 +43,7 @@ $HAS_GIT       = $envData.HAS_GIT
 $IMPL_PLAN     = $envData.IMPL_PLAN
 $NEW_PLAN = $IMPL_PLAN
 
-# Agent file paths
+# agent 文件路径
 $CLAUDE_FILE   = Join-Path $REPO_ROOT 'CLAUDE.md'
 $GEMINI_FILE   = Join-Path $REPO_ROOT 'GEMINI.md'
 $COPILOT_FILE  = Join-Path $REPO_ROOT '.github/copilot-instructions.md'
@@ -70,7 +70,7 @@ $IFLOW_FILE    = Join-Path $REPO_ROOT 'IFLOW.md'
 
 $TEMPLATE_FILE = Join-Path $REPO_ROOT '.specify/templates/agent-file-template.md'
 
-# Parsed plan data placeholders
+# 用于承载解析后 plan 数据的占位变量
 $script:NEW_LANG = ''
 $script:NEW_FRAMEWORK = ''
 $script:NEW_DB = ''
@@ -135,7 +135,7 @@ function Extract-PlanField {
         [string]$PlanFile
     )
     if (-not (Test-Path $PlanFile)) { return '' }
-    # Lines like **Language/Version**: Python 3.12
+    # 处理类似 **Language/Version**: Python 3.12 这样的行
     $regex = "^\*\*$([Regex]::Escape($FieldPattern))\*\*: (.+)$"
     Get-Content -LiteralPath $PlanFile -Encoding utf8 | ForEach-Object {
         if ($_ -match $regex) { 
@@ -232,7 +232,7 @@ function New-AgentFile {
     $content = $content -replace '\[PROJECT NAME\]',$ProjectName
     $content = $content -replace '\[DATE\]',$Date.ToString('yyyy-MM-dd')
     
-    # Build the technology stack string safely
+    # 安全地构造技术栈字符串
     $techStackForTemplate = ""
     if ($escaped_lang -and $escaped_framework) {
         $techStackForTemplate = "- $escaped_lang + $escaped_framework ($escaped_branch)"
@@ -243,14 +243,14 @@ function New-AgentFile {
     }
     
     $content = $content -replace '\[EXTRACTED FROM ALL PLAN.MD FILES\]',$techStackForTemplate
-    # For project structure we manually embed (keep newlines)
+    # 项目结构需要手动嵌入，并保留换行
     $escapedStructure = [Regex]::Escape($projectStructure)
     $content = $content -replace '\[ACTUAL STRUCTURE FROM PLANS\]',$escapedStructure
-    # Replace escaped newlines placeholder after all replacements
+    # 在所有替换完成后，再把转义换行占位符替换回真实换行
     $content = $content -replace '\[ONLY COMMANDS FOR ACTIVE TECHNOLOGIES\]',$commands
     $content = $content -replace '\[LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE\]',$languageConventions
     
-    # Build the recent changes string safely
+    # 安全地构造最近变更字符串
     $recentChangesForTemplate = ""
     if ($escaped_lang -and $escaped_framework) {
         $recentChangesForTemplate = "- ${escaped_branch}: Added ${escaped_lang} + ${escaped_framework}"
@@ -261,10 +261,10 @@ function New-AgentFile {
     }
     
     $content = $content -replace '\[LAST 3 FEATURES AND WHAT THEY ADDED\]',$recentChangesForTemplate
-    # Convert literal \n sequences introduced by Escape to real newlines
+    # 将 Escape 引入的字面量 \n 转换回真实换行
     $content = $content -replace '\\n',[Environment]::NewLine
 
-    # Prepend Cursor frontmatter for .mdc files so rules are auto-included
+    # 为 .mdc 文件预置 Cursor frontmatter，以便规则被自动纳入
     if ($TargetFile -match '\.mdc$') {
         $frontmatter = @('---','description: Project Development Guidelines','globs: ["**/*"]','alwaysApply: true','---','') -join [Environment]::NewLine
         $content = $frontmatter + $content
@@ -341,12 +341,12 @@ function Update-ExistingAgentFile {
         $output.Add($line)
     }
 
-    # Post-loop check: if we're still in the Active Technologies section and haven't added new entries
+    # 循环结束后的补充检查：如果仍处于 Active Technologies 区块且尚未添加新条目
     if ($inTech -and -not $techAdded -and $newTechEntries.Count -gt 0) {
         $newTechEntries | ForEach-Object { $output.Add($_) }
     }
 
-    # Ensure Cursor .mdc files have YAML frontmatter for auto-inclusion
+    # 确保 Cursor 的 .mdc 文件包含 YAML frontmatter，以便自动纳入
     if ($TargetFile -match '\.mdc$' -and $output.Count -gt 0 -and $output[0] -ne '---') {
         $frontmatter = @('---','description: Project Development Guidelines','globs: ["**/*"]','alwaysApply: true','---','')
         $output.InsertRange(0, $frontmatter)

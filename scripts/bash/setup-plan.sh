@@ -2,7 +2,7 @@
 
 set -e
 
-# Parse command line arguments
+# 解析命令行参数
 JSON_MODE=false
 ARGS=()
 
@@ -23,33 +23,33 @@ for arg in "$@"; do
     esac
 done
 
-# Get script directory and load common functions
+# 获取脚本目录并加载公共函数
 SCRIPT_DIR="$(CDPATH="" cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
-# Get all paths and variables from common functions
+# 从公共函数中获取所有路径和变量
 _paths_output=$(get_feature_paths) || { echo "ERROR: Failed to resolve feature paths" >&2; exit 1; }
 eval "$_paths_output"
 unset _paths_output
 
-# Check if we're on a proper feature branch (only for git repos)
+# 检查当前是否位于合法的功能分支上（仅对 git 仓库生效）
 check_feature_branch "$CURRENT_BRANCH" "$HAS_GIT" || exit 1
 
-# Ensure the feature directory exists
+# 确保功能目录存在
 mkdir -p "$FEATURE_DIR"
 
-# Copy plan template if it exists
+# 如果存在 plan 模板，则复制它
 TEMPLATE=$(resolve_template "plan-template" "$REPO_ROOT") || true
 if [[ -n "$TEMPLATE" ]] && [[ -f "$TEMPLATE" ]]; then
     cp "$TEMPLATE" "$IMPL_PLAN"
     echo "Copied plan template to $IMPL_PLAN"
 else
     echo "Warning: Plan template not found"
-    # Create a basic plan file if template doesn't exist
+    # 如果模板不存在，则创建一个基础的 plan 文件
     touch "$IMPL_PLAN"
 fi
 
-# Output results
+# 输出结果
 if $JSON_MODE; then
     if has_jq; then
         jq -cn \
@@ -70,4 +70,3 @@ else
     echo "BRANCH: $CURRENT_BRANCH"
     echo "HAS_GIT: $HAS_GIT"
 fi
-

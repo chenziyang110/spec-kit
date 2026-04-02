@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# Create a new feature
+# 创建一个新功能
 [CmdletBinding()]
 param(
     [switch]$Json,
@@ -14,7 +14,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
-# Show help if requested
+# 如果请求了帮助，则显示帮助信息
 if ($Help) {
     Write-Host "Usage: ./create-new-feature.ps1 [-Json] [-AllowExistingBranch] [-ShortName <name>] [-Number N] [-Timestamp] <feature description>"
     Write-Host ""
@@ -33,7 +33,7 @@ if ($Help) {
     exit 0
 }
 
-# Check if feature description provided
+# 检查是否提供了功能描述
 if (-not $FeatureDescription -or $FeatureDescription.Count -eq 0) {
     Write-Error "Usage: ./create-new-feature.ps1 [-Json] [-AllowExistingBranch] [-ShortName <name>] [-Number N] [-Timestamp] <feature description>"
     exit 1
@@ -41,7 +41,7 @@ if (-not $FeatureDescription -or $FeatureDescription.Count -eq 0) {
 
 $featureDesc = ($FeatureDescription -join ' ').Trim()
 
-# Validate description is not empty after trimming (e.g., user passed only whitespace)
+# 去除首尾空白后再校验描述不为空（例如用户只传入了空白字符）
 if ([string]::IsNullOrWhiteSpace($featureDesc)) {
     Write-Error "Error: Feature description cannot be empty or contain only whitespace"
     exit 1
@@ -53,7 +53,7 @@ function Get-HighestNumberFromSpecs {
     [long]$highest = 0
     if (Test-Path $SpecsDir) {
         Get-ChildItem -Path $SpecsDir -Directory | ForEach-Object {
-            # Match sequential prefixes (>=3 digits), but skip timestamp dirs.
+            # 匹配顺序编号前缀（>=3 位数字），但跳过时间戳目录
             if ($_.Name -match '^(\d{3,})-' -and $_.Name -notmatch '^\d{8}-\d{6}-') {
                 [long]$num = 0
                 if ([long]::TryParse($matches[1], [ref]$num) -and $num -gt $highest) {
@@ -73,10 +73,10 @@ function Get-HighestNumberFromBranches {
         $branches = git branch -a 2>$null
         if ($LASTEXITCODE -eq 0) {
             foreach ($branch in $branches) {
-                # Clean branch name: remove leading markers and remote prefixes
+                # 清洗分支名：移除前导标记和远端前缀
                 $cleanBranch = $branch.Trim() -replace '^\*?\s+', '' -replace '^remotes/[^/]+/', ''
                 
-                # Extract sequential feature number (>=3 digits), skip timestamp branches.
+                # 提取顺序功能编号（>=3 位数字），并跳过时间戳分支
                 if ($cleanBranch -match '^(\d{3,})-' -and $cleanBranch -notmatch '^\d{8}-\d{6}-') {
                     [long]$num = 0
                     if ([long]::TryParse($matches[1], [ref]$num) -and $num -gt $highest) {
@@ -86,7 +86,7 @@ function Get-HighestNumberFromBranches {
             }
         }
     } catch {
-        # If git command fails, return 0
+        # 如果 git 命令失败，则返回 0
         Write-Verbose "Could not check Git branches: $_"
     }
     return $highest
@@ -97,23 +97,23 @@ function Get-NextBranchNumber {
         [string]$SpecsDir
     )
 
-    # Fetch all remotes to get latest branch info (suppress errors if no remotes)
+    # 获取所有远端信息以拿到最新分支状态（如果没有远端则忽略错误）
     try {
         git fetch --all --prune 2>$null | Out-Null
     } catch {
-        # Ignore fetch errors
+        # 忽略 fetch 错误
     }
 
-    # Get highest number from ALL branches (not just matching short name)
+    # 从所有分支中取最大编号（不只限于匹配当前短名的分支）
     $highestBranch = Get-HighestNumberFromBranches
 
-    # Get highest number from ALL specs (not just matching short name)
+    # 从所有 specs 中取最大编号（不只限于匹配当前短名的规格）
     $highestSpec = Get-HighestNumberFromSpecs -SpecsDir $SpecsDir
 
-    # Take the maximum of both
+    # 取二者中的最大值
     $maxNum = [Math]::Max($highestBranch, $highestSpec)
 
-    # Return next number
+    # 返回下一个编号
     return $maxNum + 1
 }
 
@@ -122,13 +122,13 @@ function ConvertTo-CleanBranchName {
     
     return $Name.ToLower() -replace '[^a-z0-9]', '-' -replace '-{2,}', '-' -replace '^-', '' -replace '-$', ''
 }
-# Load common functions (includes Get-RepoRoot, Test-HasGit, Resolve-Template)
+# 加载公共函数（包括 Get-RepoRoot、Test-HasGit、Resolve-Template）
 . "$PSScriptRoot/common.ps1"
 
-# Use common.ps1 functions which prioritize .specify over git
+# 使用 common.ps1 中优先 .specify 的逻辑
 $repoRoot = Get-RepoRoot
 
-# Check if git is available at this repo root (not a parent)
+# 检查该仓库根目录是否可用 git（而不是误用父目录）
 $hasGit = Test-HasGit
 
 Set-Location $repoRoot
@@ -136,11 +136,11 @@ Set-Location $repoRoot
 $specsDir = Join-Path $repoRoot 'specs'
 New-Item -ItemType Directory -Path $specsDir -Force | Out-Null
 
-# Function to generate branch name with stop word filtering and length filtering
+# 生成分支名的函数：带停用词过滤和长度过滤
 function Get-BranchName {
     param([string]$Description)
     
-    # Common stop words to filter out
+    # 需要过滤掉的常见停用词
     $stopWords = @(
         'i', 'a', 'an', 'the', 'to', 'for', 'of', 'in', 'on', 'at', 'by', 'with', 'from',
         'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
@@ -149,65 +149,65 @@ function Get-BranchName {
         'want', 'need', 'add', 'get', 'set'
     )
     
-    # Convert to lowercase and extract words (alphanumeric only)
+    # 转为小写并提取单词（仅保留字母数字）
     $cleanName = $Description.ToLower() -replace '[^a-z0-9\s]', ' '
     $words = $cleanName -split '\s+' | Where-Object { $_ }
     
-    # Filter words: remove stop words and words shorter than 3 chars (unless they're uppercase acronyms in original)
+    # 过滤单词：去掉停用词和少于 3 个字符的单词（除非它们在原文中是大写缩写）
     $meaningfulWords = @()
     foreach ($word in $words) {
-        # Skip stop words
+        # 跳过停用词
         if ($stopWords -contains $word) { continue }
         
-        # Keep words that are length >= 3 OR appear as uppercase in original (likely acronyms)
+        # 保留长度 >= 3 的单词，或在原文中以大写出现的单词（大概率是缩写）
         if ($word.Length -ge 3) {
             $meaningfulWords += $word
         } elseif ($Description -match "\b$($word.ToUpper())\b") {
-            # Keep short words if they appear as uppercase in original (likely acronyms)
+            # 如果短词在原文中以大写出现，则保留（大概率是缩写）
             $meaningfulWords += $word
         }
     }
     
-    # If we have meaningful words, use first 3-4 of them
+    # 如果筛出了有意义的单词，则使用前 3-4 个
     if ($meaningfulWords.Count -gt 0) {
         $maxWords = if ($meaningfulWords.Count -eq 4) { 4 } else { 3 }
         $result = ($meaningfulWords | Select-Object -First $maxWords) -join '-'
         return $result
     } else {
-        # Fallback to original logic if no meaningful words found
+        # 如果没有筛出有意义的单词，则回退到原始逻辑
         $result = ConvertTo-CleanBranchName -Name $Description
         $fallbackWords = ($result -split '-') | Where-Object { $_ } | Select-Object -First 3
         return [string]::Join('-', $fallbackWords)
     }
 }
 
-# Generate branch name
+# 生成分支名
 if ($ShortName) {
-    # Use provided short name, just clean it up
+    # 使用用户提供的短名，只做清洗
     $branchSuffix = ConvertTo-CleanBranchName -Name $ShortName
 } else {
-    # Generate from description with smart filtering
+    # 根据描述智能过滤后生成
     $branchSuffix = Get-BranchName -Description $featureDesc
 }
 
-# Warn if -Number and -Timestamp are both specified
+# 如果同时指定了 -Number 和 -Timestamp，则给出警告
 if ($Timestamp -and $Number -ne 0) {
     Write-Warning "[specify] Warning: -Number is ignored when -Timestamp is used"
     $Number = 0
 }
 
-# Determine branch prefix
+# 确定分支前缀
 if ($Timestamp) {
     $featureNum = Get-Date -Format 'yyyyMMdd-HHmmss'
     $branchName = "$featureNum-$branchSuffix"
 } else {
-    # Determine branch number
+    # 确定分支编号
     if ($Number -eq 0) {
         if ($hasGit) {
-            # Check existing branches on remotes
+            # 检查远端中的现有分支
             $Number = Get-NextBranchNumber -SpecsDir $specsDir
         } else {
-            # Fall back to local directory check
+            # 回退到本地目录检查
             $Number = (Get-HighestNumberFromSpecs -SpecsDir $specsDir) + 1
         }
     }
@@ -216,18 +216,18 @@ if ($Timestamp) {
     $branchName = "$featureNum-$branchSuffix"
 }
 
-# GitHub enforces a 244-byte limit on branch names
-# Validate and truncate if necessary
+# GitHub 对分支名有 244 字节限制
+# 如有需要，进行校验并截断
 $maxBranchLength = 244
 if ($branchName.Length -gt $maxBranchLength) {
-    # Calculate how much we need to trim from suffix
-    # Account for prefix length: timestamp (15) + hyphen (1) = 16, or sequential (3) + hyphen (1) = 4
+    # 计算后缀需要裁剪多少
+    # 需要考虑前缀长度：时间戳（15）+ 连字符（1）= 16；顺序编号（3）+ 连字符（1）= 4
     $prefixLength = $featureNum.Length + 1
     $maxSuffixLength = $maxBranchLength - $prefixLength
     
-    # Truncate suffix
+    # 截断后缀
     $truncatedSuffix = $branchSuffix.Substring(0, [Math]::Min($branchSuffix.Length, $maxSuffixLength))
-    # Remove trailing hyphen if truncation created one
+    # 如果截断后产生了尾随连字符，则将其移除
     $truncatedSuffix = $truncatedSuffix -replace '-$', ''
     
     $originalBranchName = $branchName
@@ -246,15 +246,15 @@ if ($hasGit) {
             $branchCreated = $true
         }
     } catch {
-        # Exception during git command
+        # git 命令执行过程中抛出了异常
     }
 
     if (-not $branchCreated) {
-        # Check if branch already exists
+        # 检查分支是否已存在
         $existingBranch = git branch --list $branchName 2>$null
         if ($existingBranch) {
             if ($AllowExistingBranch) {
-                # Switch to the existing branch instead of failing
+                # 切换到已有分支，而不是直接失败
                 git checkout -q $branchName 2>$null | Out-Null
                 if ($LASTEXITCODE -ne 0) {
                     Write-Error "Error: Branch '$branchName' exists but could not be checked out. Resolve any uncommitted changes or conflicts and try again."
@@ -289,7 +289,7 @@ if (-not (Test-Path -PathType Leaf $specFile)) {
     }
 }
 
-# Set the SPECIFY_FEATURE environment variable for the current session
+# 为当前会话设置 SPECIFY_FEATURE 环境变量
 $env:SPECIFY_FEATURE = $branchName
 
 if ($Json) {

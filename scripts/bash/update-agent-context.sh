@@ -1,58 +1,58 @@
 #!/usr/bin/env bash
 
-# Update agent context files with information from plan.md
+# 使用 plan.md 中的信息更新 agent 上下文文件
 #
-# This script maintains AI agent context files by parsing feature specifications 
-# and updating agent-specific configuration files with project information.
+# 该脚本通过解析功能规格与计划文件，维护 AI agent 的上下文文件，
+# 并把项目相关信息同步到各 agent 专属的配置文件中。
 #
-# MAIN FUNCTIONS:
-# 1. Environment Validation
-#    - Verifies git repository structure and branch information
-#    - Checks for required plan.md files and templates
-#    - Validates file permissions and accessibility
+# 主要功能：
+# 1. 环境校验
+#    - 校验 git 仓库结构与分支信息
+#    - 检查所需的 plan.md 文件与模板
+#    - 校验文件权限与可访问性
 #
-# 2. Plan Data Extraction
-#    - Parses plan.md files to extract project metadata
-#    - Identifies language/version, frameworks, databases, and project types
-#    - Handles missing or incomplete specification data gracefully
+# 2. 计划数据提取
+#    - 解析 plan.md 以提取项目元数据
+#    - 识别语言/版本、框架、数据库与项目类型
+#    - 对缺失或不完整的规格数据做平滑处理
 #
-# 3. Agent File Management
-#    - Creates new agent context files from templates when needed
-#    - Updates existing agent files with new project information
-#    - Preserves manual additions and custom configurations
-#    - Supports multiple AI agent formats and directory structures
+# 3. Agent 文件管理
+#    - 在需要时从模板创建新的 agent 上下文文件
+#    - 使用新的项目信息更新已有 agent 文件
+#    - 保留人工补充内容和自定义配置
+#    - 支持多种 AI agent 格式与目录结构
 #
-# 4. Content Generation
-#    - Generates language-specific build/test commands
-#    - Creates appropriate project directory structures
-#    - Updates technology stacks and recent changes sections
-#    - Maintains consistent formatting and timestamps
+# 4. 内容生成
+#    - 生成与语言相关的构建/测试命令
+#    - 生成合适的项目目录结构
+#    - 更新技术栈与最近变更区块
+#    - 保持格式与时间戳一致
 #
-# 5. Multi-Agent Support
-#    - Handles agent-specific file paths and naming conventions
-#    - Supports: Claude, Gemini, Copilot, Cursor, Qwen, opencode, Codex, Windsurf, Junie, Kilo Code, Auggie CLI, Roo Code, CodeBuddy CLI, Qoder CLI, Amp, SHAI, Tabnine CLI, Kiro CLI, Mistral Vibe, Kimi Code, Pi Coding Agent, iFlow CLI, Antigravity or Generic
-#    - Can update single agents or all existing agent files
-#    - Creates default Claude file if no agent files exist
+# 5. 多 Agent 支持
+#    - 处理 agent 专属的文件路径与命名约定
+#    - 支持：Claude、Gemini、Copilot、Cursor、Qwen、opencode、Codex、Windsurf、Junie、Kilo Code、Auggie CLI、Roo Code、CodeBuddy CLI、Qoder CLI、Amp、SHAI、Tabnine CLI、Kiro CLI、Mistral Vibe、Kimi Code、Pi Coding Agent、iFlow CLI、Antigravity 以及 Generic
+#    - 可更新单个 agent，或批量更新所有已有 agent 文件
+#    - 如果没有任何 agent 文件，则默认创建 Claude 文件
 #
-# Usage: ./update-agent-context.sh [agent_type]
-# Agent types: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|kimi|trae|pi|iflow|generic
-# Leave empty to update all existing agent files
+# 用法：./update-agent-context.sh [agent_type]
+# agent 类型：claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|kimi|trae|pi|iflow|generic
+# 为空时表示更新所有已有 agent 文件
 
 set -e
 
-# Enable strict error handling
+# 启用严格错误处理
 set -u
 set -o pipefail
 
 #==============================================================================
-# Configuration and Global Variables
+# 配置与全局变量
 #==============================================================================
 
-# Get script directory and load common functions
+# 获取脚本目录并加载公共函数
 SCRIPT_DIR="$(CDPATH="" cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
-# Get all paths and variables from common functions
+# 从公共函数中获取所有路径和变量
 _paths_output=$(get_feature_paths) || { echo "ERROR: Failed to resolve feature paths" >&2; exit 1; }
 eval "$_paths_output"
 unset _paths_output
@@ -60,7 +60,7 @@ unset _paths_output
 NEW_PLAN="$IMPL_PLAN"  # Alias for compatibility with existing code
 AGENT_TYPE="${1:-}"
 
-# Agent-specific file paths  
+# agent 专属文件路径
 CLAUDE_FILE="$REPO_ROOT/CLAUDE.md"
 GEMINI_FILE="$REPO_ROOT/GEMINI.md"
 COPILOT_FILE="$REPO_ROOT/.github/copilot-instructions.md"
@@ -74,8 +74,8 @@ AUGGIE_FILE="$REPO_ROOT/.augment/rules/specify-rules.md"
 ROO_FILE="$REPO_ROOT/.roo/rules/specify-rules.md"
 CODEBUDDY_FILE="$REPO_ROOT/CODEBUDDY.md"
 QODER_FILE="$REPO_ROOT/QODER.md"
-# Amp, Kiro CLI, IBM Bob, and Pi all share AGENTS.md — use AGENTS_FILE to avoid
-# updating the same file multiple times.
+# Amp、Kiro CLI、IBM Bob 和 Pi 共用 AGENTS.md
+# 使用 AGENTS_FILE 可避免同一文件被重复更新多次。
 AMP_FILE="$AGENTS_FILE"
 SHAI_FILE="$REPO_ROOT/SHAI.md"
 TABNINE_FILE="$REPO_ROOT/TABNINE.md"
@@ -87,17 +87,17 @@ KIMI_FILE="$REPO_ROOT/KIMI.md"
 TRAE_FILE="$REPO_ROOT/.trae/rules/AGENTS.md"
 IFLOW_FILE="$REPO_ROOT/IFLOW.md"
 
-# Template file
+# 模板文件
 TEMPLATE_FILE="$REPO_ROOT/.specify/templates/agent-file-template.md"
 
-# Global variables for parsed plan data
+# 存放解析后 plan 数据的全局变量
 NEW_LANG=""
 NEW_FRAMEWORK=""
 NEW_DB=""
 NEW_PROJECT_TYPE=""
 
 #==============================================================================
-# Utility Functions
+# 工具函数
 #==============================================================================
 
 log_info() {
@@ -116,25 +116,25 @@ log_warning() {
     echo "WARNING: $1" >&2
 }
 
-# Cleanup function for temporary files
+# 用于清理临时文件的函数
 cleanup() {
     local exit_code=$?
-    # Disarm traps to prevent re-entrant loop
+    # 解除 trap，避免重复进入清理逻辑
     trap - EXIT INT TERM
     rm -f /tmp/agent_update_*_$$
     rm -f /tmp/manual_additions_$$
     exit $exit_code
 }
 
-# Set up cleanup trap
+# 设置清理 trap
 trap cleanup EXIT INT TERM
 
 #==============================================================================
-# Validation Functions
+# 校验函数
 #==============================================================================
 
 validate_environment() {
-    # Check if we have a current branch/feature (git or non-git)
+    # 检查当前是否存在功能分支/功能上下文（兼容 git 与非 git）
     if [[ -z "$CURRENT_BRANCH" ]]; then
         log_error "Unable to determine current feature"
         if [[ "$HAS_GIT" == "true" ]]; then
@@ -145,7 +145,7 @@ validate_environment() {
         exit 1
     fi
     
-    # Check if plan.md exists
+    # 检查 plan.md 是否存在
     if [[ ! -f "$NEW_PLAN" ]]; then
         log_error "No plan.md found at $NEW_PLAN"
         log_info "Make sure you're working on a feature with a corresponding spec directory"
@@ -155,7 +155,7 @@ validate_environment() {
         exit 1
     fi
     
-    # Check if template exists (needed for new files)
+    # 检查模板是否存在（创建新文件时需要）
     if [[ ! -f "$TEMPLATE_FILE" ]]; then
         log_warning "Template file not found at $TEMPLATE_FILE"
         log_warning "Creating new agent files will fail"
@@ -163,7 +163,7 @@ validate_environment() {
 }
 
 #==============================================================================
-# Plan Parsing Functions
+# Plan 解析函数
 #==============================================================================
 
 extract_plan_field() {
@@ -198,7 +198,7 @@ parse_plan_data() {
     NEW_DB=$(extract_plan_field "Storage" "$plan_file")
     NEW_PROJECT_TYPE=$(extract_plan_field "Project Type" "$plan_file")
     
-    # Log what we found
+    # 记录已发现的信息
     if [[ -n "$NEW_LANG" ]]; then
         log_info "Found language: $NEW_LANG"
     else
@@ -223,17 +223,17 @@ format_technology_stack() {
     local framework="$2"
     local parts=()
     
-    # Add non-empty parts
+    # 添加非空部分
     [[ -n "$lang" && "$lang" != "NEEDS CLARIFICATION" ]] && parts+=("$lang")
     [[ -n "$framework" && "$framework" != "NEEDS CLARIFICATION" && "$framework" != "N/A" ]] && parts+=("$framework")
     
-    # Join with proper formatting
+    # 按正确格式拼接
     if [[ ${#parts[@]} -eq 0 ]]; then
         echo ""
     elif [[ ${#parts[@]} -eq 1 ]]; then
         echo "${parts[0]}"
     else
-        # Join multiple parts with " + "
+        # 多个部分之间用 " + " 连接
         local result="${parts[0]}"
         for ((i=1; i<${#parts[@]}; i++)); do
             result="$result + ${parts[i]}"
@@ -243,7 +243,7 @@ format_technology_stack() {
 }
 
 #==============================================================================
-# Template and Content Generation Functions
+# 模板与内容生成函数
 #==============================================================================
 
 get_project_structure() {
@@ -303,7 +303,7 @@ create_new_agent_file() {
         return 1
     fi
     
-    # Replace template placeholders
+    # 替换模板占位符
     local project_structure
     project_structure=$(get_project_structure "$NEW_PROJECT_TYPE")
     
@@ -313,13 +313,13 @@ create_new_agent_file() {
     local language_conventions
     language_conventions=$(get_language_conventions "$NEW_LANG")
     
-    # Perform substitutions with error checking using safer approach
-    # Escape special characters for sed by using a different delimiter or escaping
+    # 使用更安全的方式执行替换，并带上错误检查
+    # 通过更换分隔符或转义来处理 sed 中的特殊字符
     local escaped_lang=$(printf '%s\n' "$NEW_LANG" | sed 's/[\[\.*^$()+{}|]/\\&/g')
     local escaped_framework=$(printf '%s\n' "$NEW_FRAMEWORK" | sed 's/[\[\.*^$()+{}|]/\\&/g')
     local escaped_branch=$(printf '%s\n' "$CURRENT_BRANCH" | sed 's/[\[\.*^$()+{}|]/\\&/g')
     
-    # Build technology stack and recent change strings conditionally
+    # 按条件构造技术栈与最近变更字符串
     local tech_stack
     if [[ -n "$escaped_lang" && -n "$escaped_framework" ]]; then
         tech_stack="- $escaped_lang + $escaped_framework ($escaped_branch)"
@@ -360,14 +360,14 @@ create_new_agent_file() {
         fi
     done
     
-    # Convert \n sequences to actual newlines
+    # 将 \n 序列转成真实换行
     newline=$(printf '\n')
     sed -i.bak2 "s/\\\\n/${newline}/g" "$temp_file"
 
-    # Clean up backup files
+    # 清理备份文件
     rm -f "$temp_file.bak" "$temp_file.bak2"
 
-    # Prepend Cursor frontmatter for .mdc files so rules are auto-included
+    # 对 .mdc 文件预置 Cursor frontmatter，以便规则能被自动纳入
     if [[ "$target_file" == *.mdc ]]; then
         local frontmatter_file
         frontmatter_file=$(mktemp) || return 1
@@ -388,19 +388,19 @@ update_existing_agent_file() {
     
     log_info "Updating existing agent context file..."
     
-    # Use a single temporary file for atomic update
+    # 使用单个临时文件实现原子更新
     local temp_file
     temp_file=$(mktemp) || {
         log_error "Failed to create temporary file"
         return 1
     }
     
-    # Process the file in one pass
+    # 单次遍历完成文件处理
     local tech_stack=$(format_technology_stack "$NEW_LANG" "$NEW_FRAMEWORK")
     local new_tech_entries=()
     local new_change_entry=""
     
-    # Prepare new technology entries
+    # 准备新增的技术条目
     if [[ -n "$tech_stack" ]] && ! grep -q "$tech_stack" "$target_file"; then
         new_tech_entries+=("- $tech_stack ($CURRENT_BRANCH)")
     fi
@@ -409,14 +409,14 @@ update_existing_agent_file() {
         new_tech_entries+=("- $NEW_DB ($CURRENT_BRANCH)")
     fi
     
-    # Prepare new change entry
+    # 准备新增的变更条目
     if [[ -n "$tech_stack" ]]; then
         new_change_entry="- $CURRENT_BRANCH: Added $tech_stack"
     elif [[ -n "$NEW_DB" ]] && [[ "$NEW_DB" != "N/A" ]] && [[ "$NEW_DB" != "NEEDS CLARIFICATION" ]]; then
         new_change_entry="- $CURRENT_BRANCH: Added $NEW_DB"
     fi
     
-    # Check if sections exist in the file
+    # 检查文件中是否存在相关章节
     local has_active_technologies=0
     local has_recent_changes=0
     
@@ -428,7 +428,7 @@ update_existing_agent_file() {
         has_recent_changes=1
     fi
     
-    # Process file line by line
+    # 按行处理文件
     local in_tech_section=false
     local in_changes_section=false
     local tech_entries_added=false
@@ -437,13 +437,13 @@ update_existing_agent_file() {
     local file_ended=false
     
     while IFS= read -r line || [[ -n "$line" ]]; do
-        # Handle Active Technologies section
+        # 处理 Active Technologies 区块
         if [[ "$line" == "## Active Technologies" ]]; then
             echo "$line" >> "$temp_file"
             in_tech_section=true
             continue
         elif [[ $in_tech_section == true ]] && [[ "$line" =~ ^##[[:space:]] ]]; then
-            # Add new tech entries before closing the section
+            # 在结束该区块前插入新的技术条目
             if [[ $tech_entries_added == false ]] && [[ ${#new_tech_entries[@]} -gt 0 ]]; then
                 printf '%s\n' "${new_tech_entries[@]}" >> "$temp_file"
                 tech_entries_added=true
@@ -452,7 +452,7 @@ update_existing_agent_file() {
             in_tech_section=false
             continue
         elif [[ $in_tech_section == true ]] && [[ -z "$line" ]]; then
-            # Add new tech entries before empty line in tech section
+            # 在技术区块中的空行前插入新的技术条目
             if [[ $tech_entries_added == false ]] && [[ ${#new_tech_entries[@]} -gt 0 ]]; then
                 printf '%s\n' "${new_tech_entries[@]}" >> "$temp_file"
                 tech_entries_added=true
@@ -461,10 +461,10 @@ update_existing_agent_file() {
             continue
         fi
         
-        # Handle Recent Changes section
+        # 处理 Recent Changes 区块
         if [[ "$line" == "## Recent Changes" ]]; then
             echo "$line" >> "$temp_file"
-            # Add new change entry right after the heading
+            # 在标题后立即插入新的变更条目
             if [[ -n "$new_change_entry" ]]; then
                 echo "$new_change_entry" >> "$temp_file"
             fi
@@ -476,7 +476,7 @@ update_existing_agent_file() {
             in_changes_section=false
             continue
         elif [[ $in_changes_section == true ]] && [[ "$line" == "- "* ]]; then
-            # Keep only first 2 existing changes
+            # 仅保留前 2 条已有变更
             if [[ $existing_changes_count -lt 2 ]]; then
                 echo "$line" >> "$temp_file"
                 ((existing_changes_count++))
@@ -484,7 +484,7 @@ update_existing_agent_file() {
             continue
         fi
         
-        # Update timestamp
+        # 更新时间戳
         if [[ "$line" =~ (\*\*)?Last\ updated(\*\*)?:.*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] ]]; then
             echo "$line" | sed "s/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/$current_date/" >> "$temp_file"
         else
@@ -492,13 +492,13 @@ update_existing_agent_file() {
         fi
     done < "$target_file"
     
-    # Post-loop check: if we're still in the Active Technologies section and haven't added new entries
+    # 循环结束后的补充检查：如果仍处于 Active Technologies 区块且尚未添加新条目
     if [[ $in_tech_section == true ]] && [[ $tech_entries_added == false ]] && [[ ${#new_tech_entries[@]} -gt 0 ]]; then
         printf '%s\n' "${new_tech_entries[@]}" >> "$temp_file"
         tech_entries_added=true
     fi
     
-    # If sections don't exist, add them at the end of the file
+    # 如果相应章节不存在，则追加到文件末尾
     if [[ $has_active_technologies -eq 0 ]] && [[ ${#new_tech_entries[@]} -gt 0 ]]; then
         echo "" >> "$temp_file"
         echo "## Active Technologies" >> "$temp_file"
@@ -513,7 +513,7 @@ update_existing_agent_file() {
         changes_entries_added=true
     fi
     
-    # Ensure Cursor .mdc files have YAML frontmatter for auto-inclusion
+    # 确保 Cursor 的 .mdc 文件包含 YAML frontmatter，以便自动纳入
     if [[ "$target_file" == *.mdc ]]; then
         if ! head -1 "$temp_file" | grep -q '^---'; then
             local frontmatter_file
@@ -524,7 +524,7 @@ update_existing_agent_file() {
         fi
     fi
 
-    # Move temp file to target atomically
+    # 以原子方式将临时文件移动到目标位置
     if ! mv "$temp_file" "$target_file"; then
         log_error "Failed to update target file"
         rm -f "$temp_file"
@@ -534,7 +534,7 @@ update_existing_agent_file() {
     return 0
 }
 #==============================================================================
-# Main Agent File Update Function
+# 主 Agent 文件更新函数
 #==============================================================================
 
 update_agent_file() {
@@ -553,7 +553,7 @@ update_agent_file() {
     local current_date
     current_date=$(date +%Y-%m-%d)
     
-    # Create directory if it doesn't exist
+    # 如目录不存在则先创建
     local target_dir
     target_dir=$(dirname "$target_file")
     if [[ ! -d "$target_dir" ]]; then
@@ -564,7 +564,7 @@ update_agent_file() {
     fi
     
     if [[ ! -f "$target_file" ]]; then
-        # Create new file from template
+        # 从模板创建新文件
         local temp_file
         temp_file=$(mktemp) || {
             log_error "Failed to create temporary file"
@@ -585,7 +585,7 @@ update_agent_file() {
             return 1
         fi
     else
-        # Update existing file
+        # 更新已有文件
         if [[ ! -r "$target_file" ]]; then
             log_error "Cannot read existing file: $target_file"
             return 1
@@ -608,7 +608,7 @@ update_agent_file() {
 }
 
 #==============================================================================
-# Agent Selection and Processing
+# Agent 选择与处理
 #==============================================================================
 
 update_specific_agent() {
@@ -701,14 +701,14 @@ update_specific_agent() {
     esac
 }
 
-# Helper: skip non-existent files and files already updated (dedup by
-# realpath so that variables pointing to the same file — e.g. AMP_FILE,
-# KIRO_FILE, BOB_FILE all resolving to AGENTS_FILE — are only written once).
-# Uses a linear array instead of associative array for bash 3.2 compatibility.
-# Note: defined at top level because bash 3.2 does not support true
-# nested/local functions. _updated_paths, _found_agent, and _all_ok are
-# initialised exclusively inside update_all_existing_agents so that
-# sourcing this script has no side effects on the caller's environment.
+# 辅助逻辑：跳过不存在的文件，以及已经更新过的文件（通过
+# realpath 去重，因此指向同一文件的变量——例如 AMP_FILE、
+# KIRO_FILE、BOB_FILE 最终都解析到 AGENTS_FILE——只会写入一次）。
+# 为兼容 bash 3.2，这里使用线性数组而不是关联数组。
+# 注意：该逻辑定义在顶层，因为 bash 3.2 不支持真正的
+# 嵌套/local 函数。_updated_paths、_found_agent 和 _all_ok
+# 仅在 update_all_existing_agents 内初始化，这样 source 本脚本时
+# 不会对调用方环境产生副作用。
 
 _update_if_new() {
     local file="$1" name="$2"
@@ -721,9 +721,9 @@ _update_if_new() {
             [[ "$p" == "$real_path" ]] && return 0
         done
     fi
-    # Record the file as seen before attempting the update so that:
-    # (a) aliases pointing to the same path are not retried on failure
-    # (b) _found_agent reflects file existence, not update success
+    # 在尝试更新前先记录该文件已经出现过，这样可以保证：
+    # (a) 指向同一路径的别名在失败后不会被重复重试
+    # (b) _found_agent 反映的是文件存在性，而不是更新是否成功
     _updated_paths+=("$real_path")
     _found_agent=true
     update_agent_file "$file" "$name"
@@ -758,7 +758,7 @@ update_all_existing_agents() {
     _update_if_new "$TRAE_FILE" "Trae"                     || _all_ok=false
     _update_if_new "$IFLOW_FILE" "iFlow CLI"               || _all_ok=false
 
-    # If no agent files exist, create a default Claude file
+    # 如果没有任何 agent 文件，则创建默认的 Claude 文件
     if [[ "$_found_agent" == false ]]; then
         log_info "No existing agent files found, creating default Claude file..."
         update_agent_file "$CLAUDE_FILE" "Claude Code" || return 1
@@ -787,39 +787,39 @@ print_summary() {
 }
 
 #==============================================================================
-# Main Execution
+# 主执行流程
 #==============================================================================
 
 main() {
-    # Validate environment before proceeding
+    # 在继续前先校验环境
     validate_environment
     
     log_info "=== Updating agent context files for feature $CURRENT_BRANCH ==="
     
-    # Parse the plan file to extract project information
+    # 解析 plan 文件以提取项目信息
     if ! parse_plan_data "$NEW_PLAN"; then
         log_error "Failed to parse plan data"
         exit 1
     fi
     
-    # Process based on agent type argument
+    # 根据 agent 类型参数执行对应处理
     local success=true
     
     if [[ -z "$AGENT_TYPE" ]]; then
-        # No specific agent provided - update all existing agent files
+        # 未指定具体 agent：更新所有已有 agent 文件
         log_info "No agent specified, updating all existing agent files..."
         if ! update_all_existing_agents; then
             success=false
         fi
     else
-        # Specific agent provided - update only that agent
+        # 指定了具体 agent：只更新该 agent
         log_info "Updating specific agent: $AGENT_TYPE"
         if ! update_specific_agent "$AGENT_TYPE"; then
             success=false
         fi
     fi
     
-    # Print summary
+    # 打印摘要
     print_summary
     
     if [[ "$success" == true ]]; then
@@ -831,7 +831,7 @@ main() {
     fi
 }
 
-# Execute main function if script is run directly
+# 如果脚本是直接运行的，则执行 main 函数
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

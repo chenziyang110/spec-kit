@@ -1,13 +1,13 @@
 #!/usr/bin/env pwsh
-# Common PowerShell functions analogous to common.sh
+# 与 common.sh 对应的公共 PowerShell 函数
 
-# Find repository root by searching upward for .specify directory
-# This is the primary marker for spec-kit projects
+# 通过向上查找 .specify 目录来定位仓库根目录
+# 这是 spec-kit 项目的首要标识
 function Find-SpecifyRoot {
     param([string]$StartDir = (Get-Location).Path)
 
-    # Normalize to absolute path to prevent issues with relative paths
-    # Use -LiteralPath to handle paths with wildcard characters ([, ], *, ?)
+    # 规范化为绝对路径，避免相对路径带来的问题
+    # 使用 -LiteralPath 以处理包含通配符字符的路径（[, ], *, ?）
     $resolved = Resolve-Path -LiteralPath $StartDir -ErrorAction SilentlyContinue
     $current = if ($resolved) { $resolved.Path } else { $null }
     if (-not $current) { return $null }
@@ -24,37 +24,37 @@ function Find-SpecifyRoot {
     }
 }
 
-# Get repository root, prioritizing .specify directory over git
-# This prevents using a parent git repo when spec-kit is initialized in a subdirectory
+# 获取仓库根目录，优先使用 .specify 而不是 git
+# 这样可以避免在 spec-kit 初始化于子目录时误用父级 git 仓库
 function Get-RepoRoot {
-    # First, look for .specify directory (spec-kit's own marker)
+    # 首先查找 .specify 目录（spec-kit 自身的标识）
     $specifyRoot = Find-SpecifyRoot
     if ($specifyRoot) {
         return $specifyRoot
     }
 
-    # Fallback to git if no .specify found
+    # 如果未找到 .specify，则退回到 git
     try {
         $result = git rev-parse --show-toplevel 2>$null
         if ($LASTEXITCODE -eq 0) {
             return $result
         }
     } catch {
-        # Git command failed
+        # git 命令执行失败
     }
 
-    # Final fallback to script location for non-git repos
-    # Use -LiteralPath to handle paths with wildcard characters
+    # 对于非 git 仓库，最终退回到脚本所在位置
+    # 使用 -LiteralPath 以处理包含通配符字符的路径
     return (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "../../..")).Path
 }
 
 function Get-CurrentBranch {
-    # First check if SPECIFY_FEATURE environment variable is set
+    # 先检查是否设置了 SPECIFY_FEATURE 环境变量
     if ($env:SPECIFY_FEATURE) {
         return $env:SPECIFY_FEATURE
     }
 
-    # Then check git if available at the spec-kit root (not parent)
+    # 然后在 spec-kit 根目录检查 git（不是父目录）
     $repoRoot = Get-RepoRoot
     if (Test-HasGit) {
         try {
@@ -63,11 +63,11 @@ function Get-CurrentBranch {
                 return $result
             }
         } catch {
-            # Git command failed
+            # git 命令执行失败
         }
     }
 
-    # For non-git repos, try to find the latest feature directory
+    # 对于非 git 仓库，尝试找到最新的功能目录
     $specsDir = Join-Path $repoRoot "specs"
     
     if (Test-Path $specsDir) {
@@ -77,7 +77,7 @@ function Get-CurrentBranch {
 
         Get-ChildItem -Path $specsDir -Directory | ForEach-Object {
             if ($_.Name -match '^(\d{8}-\d{6})-') {
-                # Timestamp-based branch: compare lexicographically
+                # 基于时间戳的分支：按字典序比较
                 $ts = $matches[1]
                 if ($ts -gt $latestTimestamp) {
                     $latestTimestamp = $ts
@@ -87,7 +87,7 @@ function Get-CurrentBranch {
                 $num = [int]$matches[1]
                 if ($num -gt $highest) {
                     $highest = $num
-                    # Only update if no timestamp branch found yet
+                    # 仅在尚未发现时间戳分支时才更新
                     if (-not $latestTimestamp) {
                         $latestFeature = $_.Name
                     }
@@ -100,25 +100,25 @@ function Get-CurrentBranch {
         }
     }
     
-    # Final fallback
+    # 最终回退值
     return "main"
 }
 
-# Check if we have git available at the spec-kit root level
-# Returns true only if git is installed and the repo root is inside a git work tree
-# Handles both regular repos (.git directory) and worktrees/submodules (.git file)
+# 检查 spec-kit 根目录层级是否可用 git
+# 仅当 git 已安装且仓库根目录位于 git 工作树内时返回 true
+# 同时兼容普通仓库（.git 目录）和 worktree/submodule（.git 文件）
 function Test-HasGit {
-    # First check if git command is available (before calling Get-RepoRoot which may use git)
+    # 先检查 git 命令是否可用（因为 Get-RepoRoot 本身可能会用到 git）
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         return $false
     }
     $repoRoot = Get-RepoRoot
-    # Check if .git exists (directory or file for worktrees/submodules)
-    # Use -LiteralPath to handle paths with wildcard characters
+    # 检查 .git 是否存在（普通仓库是目录，worktree/submodule 可能是文件）
+    # 使用 -LiteralPath 以处理包含通配符字符的路径
     if (-not (Test-Path -LiteralPath (Join-Path $repoRoot ".git"))) {
         return $false
     }
-    # Verify it's actually a valid git work tree
+    # 验证它是否真的是合法的 git 工作树
     try {
         $null = git -C $repoRoot rev-parse --is-inside-work-tree 2>$null
         return ($LASTEXITCODE -eq 0)
@@ -133,7 +133,7 @@ function Test-FeatureBranch {
         [bool]$HasGit = $true
     )
     
-    # For non-git repos, we can't enforce branch naming but still provide output
+    # 对于非 git 仓库，无法强制分支命名规则，但仍然给出输出
     if (-not $HasGit) {
         Write-Warning "[specify] Warning: Git repository not detected; skipped branch validation"
         return $true
@@ -195,11 +195,11 @@ function Test-DirHasFiles {
     }
 }
 
-# Resolve a template name to a file path using the priority stack:
+# 按优先级栈将模板名解析为文件路径：
 #   1. .specify/templates/overrides/
-#   2. .specify/presets/<preset-id>/templates/ (sorted by priority from .registry)
+#   2. .specify/presets/<preset-id>/templates/（按 .registry 中的优先级排序）
 #   3. .specify/extensions/<ext-id>/templates/
-#   4. .specify/templates/ (core)
+#   4. .specify/templates/（核心模板）
 function Resolve-Template {
     param(
         [Parameter(Mandatory=$true)][string]$TemplateName,
@@ -208,11 +208,11 @@ function Resolve-Template {
 
     $base = Join-Path $RepoRoot '.specify/templates'
 
-    # Priority 1: Project overrides
+    # 优先级 1：项目级覆盖
     $override = Join-Path $base "overrides/$TemplateName.md"
     if (Test-Path $override) { return $override }
 
-    # Priority 2: Installed presets (sorted by priority from .registry)
+    # 优先级 2：已安装的 presets（按 .registry 中的优先级排序）
     $presetsDir = Join-Path $RepoRoot '.specify/presets'
     if (Test-Path $presetsDir) {
         $registryFile = Join-Path $presetsDir '.registry'
@@ -227,7 +227,7 @@ function Resolve-Template {
                         ForEach-Object { $_.Name }
                 }
             } catch {
-                # Fallback: alphabetical directory order
+                # 回退：按目录字母序
                 $sortedPresets = @()
             }
         }
@@ -238,7 +238,7 @@ function Resolve-Template {
                 if (Test-Path $candidate) { return $candidate }
             }
         } else {
-            # Fallback: alphabetical directory order
+            # 回退：按目录字母序
             foreach ($preset in Get-ChildItem -Path $presetsDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '.*' }) {
                 $candidate = Join-Path $preset.FullName "templates/$TemplateName.md"
                 if (Test-Path $candidate) { return $candidate }
@@ -246,7 +246,7 @@ function Resolve-Template {
         }
     }
 
-    # Priority 3: Extension-provided templates
+    # 优先级 3：扩展提供的模板
     $extDir = Join-Path $RepoRoot '.specify/extensions'
     if (Test-Path $extDir) {
         foreach ($ext in Get-ChildItem -Path $extDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '.*' } | Sort-Object Name) {
@@ -255,10 +255,9 @@ function Resolve-Template {
         }
     }
 
-    # Priority 4: Core templates
+    # 优先级 4：核心模板
     $core = Join-Path $base "$TemplateName.md"
     if (Test-Path $core) { return $core }
 
     return $null
 }
-

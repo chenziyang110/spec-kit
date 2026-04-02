@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Common functions and variables for all scripts
+# 所有脚本共用的函数与变量
 
-# Find repository root by searching upward for .specify directory
-# This is the primary marker for spec-kit projects
+# 通过向上查找 .specify 目录来定位仓库根目录
+# 这是 spec-kit 项目的首要标识
 find_specify_root() {
     local dir="${1:-$(pwd)}"
-    # Normalize to absolute path to prevent infinite loop with relative paths
-    # Use -- to handle paths starting with - (e.g., -P, -L)
+    # 规范化为绝对路径，避免相对路径导致死循环
+    # 使用 -- 以处理以 - 开头的路径（例如 -P、-L）
     dir="$(cd -- "$dir" 2>/dev/null && pwd)" || return 1
     local prev_dir=""
     while true; do
@@ -14,7 +14,7 @@ find_specify_root() {
             echo "$dir"
             return 0
         fi
-        # Stop if we've reached filesystem root or dirname stops changing
+        # 如果已经到达文件系统根目录，或 dirname 不再变化，则停止
         if [ "$dir" = "/" ] || [ "$dir" = "$prev_dir" ]; then
             break
         fi
@@ -24,43 +24,43 @@ find_specify_root() {
     return 1
 }
 
-# Get repository root, prioritizing .specify directory over git
-# This prevents using a parent git repo when spec-kit is initialized in a subdirectory
+# 获取仓库根目录，优先使用 .specify 而不是 git
+# 这样可以避免在 spec-kit 初始化于子目录时误用父级 git 仓库
 get_repo_root() {
-    # First, look for .specify directory (spec-kit's own marker)
+    # 首先查找 .specify 目录（spec-kit 自身的标识）
     local specify_root
     if specify_root=$(find_specify_root); then
         echo "$specify_root"
         return
     fi
 
-    # Fallback to git if no .specify found
+    # 如果未找到 .specify，则退回到 git
     if git rev-parse --show-toplevel >/dev/null 2>&1; then
         git rev-parse --show-toplevel
         return
     fi
 
-    # Final fallback to script location for non-git repos
+    # 对于非 git 仓库，最终退回到脚本所在位置
     local script_dir="$(CDPATH="" cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     (cd "$script_dir/../../.." && pwd)
 }
 
-# Get current branch, with fallback for non-git repositories
+# 获取当前分支；对于非 git 仓库提供回退逻辑
 get_current_branch() {
-    # First check if SPECIFY_FEATURE environment variable is set
+    # 先检查是否设置了 SPECIFY_FEATURE 环境变量
     if [[ -n "${SPECIFY_FEATURE:-}" ]]; then
         echo "$SPECIFY_FEATURE"
         return
     fi
 
-    # Then check git if available at the spec-kit root (not parent)
+    # 然后在 spec-kit 根目录检查 git（不是父目录）
     local repo_root=$(get_repo_root)
     if has_git; then
         git -C "$repo_root" rev-parse --abbrev-ref HEAD
         return
     fi
 
-    # For non-git repos, try to find the latest feature directory
+    # 对于非 git 仓库，尝试找到最新的功能目录
     local specs_dir="$repo_root/specs"
 
     if [[ -d "$specs_dir" ]]; then
@@ -72,7 +72,7 @@ get_current_branch() {
             if [[ -d "$dir" ]]; then
                 local dirname=$(basename "$dir")
                 if [[ "$dirname" =~ ^([0-9]{8}-[0-9]{6})- ]]; then
-                    # Timestamp-based branch: compare lexicographically
+                    # 基于时间戳的分支：按字典序比较
                     local ts="${BASH_REMATCH[1]}"
                     if [[ "$ts" > "$latest_timestamp" ]]; then
                         latest_timestamp="$ts"
@@ -83,7 +83,7 @@ get_current_branch() {
                     number=$((10#$number))
                     if [[ "$number" -gt "$highest" ]]; then
                         highest=$number
-                        # Only update if no timestamp branch found yet
+                        # 仅在尚未发现时间戳分支时才更新
                         if [[ -z "$latest_timestamp" ]]; then
                             latest_feature=$dirname
                         fi
@@ -98,19 +98,19 @@ get_current_branch() {
         fi
     fi
 
-    echo "main"  # Final fallback
+    echo "main"  # 最终回退值
 }
 
-# Check if we have git available at the spec-kit root level
-# Returns true only if git is installed and the repo root is inside a git work tree
-# Handles both regular repos (.git directory) and worktrees/submodules (.git file)
+# 检查 spec-kit 根目录层级是否可用 git
+# 仅当 git 已安装且仓库根目录位于 git 工作树内时返回 true
+# 同时兼容普通仓库（.git 目录）和 worktree/submodule（.git 文件）
 has_git() {
-    # First check if git command is available (before calling get_repo_root which may use git)
+    # 先检查 git 命令是否可用（因为 get_repo_root 本身可能会用到 git）
     command -v git >/dev/null 2>&1 || return 1
     local repo_root=$(get_repo_root)
-    # Check if .git exists (directory or file for worktrees/submodules)
+    # 检查 .git 是否存在（普通仓库是目录，worktree/submodule 可能是文件）
     [ -e "$repo_root/.git" ] || return 1
-    # Verify it's actually a valid git work tree
+    # 验证它是否真的是合法的 git 工作树
     git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1
 }
 
@@ -118,7 +118,7 @@ check_feature_branch() {
     local branch="$1"
     local has_git_repo="$2"
 
-    # For non-git repos, we can't enforce branch naming but still provide output
+    # 对于非 git 仓库，无法强制分支命名规则，但仍然给出输出
     if [[ "$has_git_repo" != "true" ]]; then
         echo "[specify] Warning: Git repository not detected; skipped branch validation" >&2
         return 0
@@ -135,26 +135,26 @@ check_feature_branch() {
 
 get_feature_dir() { echo "$1/specs/$2"; }
 
-# Find feature directory by numeric prefix instead of exact branch match
-# This allows multiple branches to work on the same spec (e.g., 004-fix-bug, 004-add-feature)
+# 通过数字前缀而不是精确分支名来查找功能目录
+# 这样允许多个分支共同对应同一份规格（例如 004-fix-bug、004-add-feature）
 find_feature_dir_by_prefix() {
     local repo_root="$1"
     local branch_name="$2"
     local specs_dir="$repo_root/specs"
 
-    # Extract prefix from branch (e.g., "004" from "004-whatever" or "20260319-143022" from timestamp branches)
+    # 从分支名中提取前缀（例如从 "004-whatever" 提取 "004"，或从时间戳分支提取 "20260319-143022"）
     local prefix=""
     if [[ "$branch_name" =~ ^([0-9]{8}-[0-9]{6})- ]]; then
         prefix="${BASH_REMATCH[1]}"
     elif [[ "$branch_name" =~ ^([0-9]{3})- ]]; then
         prefix="${BASH_REMATCH[1]}"
     else
-        # If branch doesn't have a recognized prefix, fall back to exact match
+        # 如果分支没有可识别的前缀，则回退到精确匹配
         echo "$specs_dir/$branch_name"
         return
     fi
 
-    # Search for directories in specs/ that start with this prefix
+    # 在 specs/ 中查找以该前缀开头的目录
     local matches=()
     if [[ -d "$specs_dir" ]]; then
         for dir in "$specs_dir"/"$prefix"-*; do
@@ -164,15 +164,15 @@ find_feature_dir_by_prefix() {
         done
     fi
 
-    # Handle results
+    # 处理查找结果
     if [[ ${#matches[@]} -eq 0 ]]; then
-        # No match found - return the branch name path (will fail later with clear error)
+        # 未找到匹配项：返回按分支名推导的路径（稍后会以清晰错误失败）
         echo "$specs_dir/$branch_name"
     elif [[ ${#matches[@]} -eq 1 ]]; then
-        # Exactly one match - perfect!
+        # 恰好一个匹配项：理想情况
         echo "$specs_dir/${matches[0]}"
     else
-        # Multiple matches - this shouldn't happen with proper naming convention
+        # 存在多个匹配项：正常命名规范下不应出现这种情况
         echo "ERROR: Multiple spec directories found with prefix '$prefix': ${matches[*]}" >&2
         echo "Please ensure only one spec directory exists per prefix." >&2
         return 1
@@ -188,15 +188,15 @@ get_feature_paths() {
         has_git_repo="true"
     fi
 
-    # Use prefix-based lookup to support multiple branches per spec
+    # 使用基于前缀的查找方式，以支持一份 spec 对应多个分支
     local feature_dir
     if ! feature_dir=$(find_feature_dir_by_prefix "$repo_root" "$current_branch"); then
         echo "ERROR: Failed to resolve feature directory" >&2
         return 1
     fi
 
-    # Use printf '%q' to safely quote values, preventing shell injection
-    # via crafted branch names or paths containing special characters
+    # 使用 printf '%q' 对值进行安全转义，防止因精心构造的分支名
+    # 或包含特殊字符的路径导致 shell 注入
     printf 'REPO_ROOT=%q\n' "$repo_root"
     printf 'CURRENT_BRANCH=%q\n' "$current_branch"
     printf 'HAS_GIT=%q\n' "$has_git_repo"
@@ -210,13 +210,13 @@ get_feature_paths() {
     printf 'CONTRACTS_DIR=%q\n' "$feature_dir/contracts"
 }
 
-# Check if jq is available for safe JSON construction
+# 检查是否可用 jq，以安全构造 JSON
 has_jq() {
     command -v jq >/dev/null 2>&1
 }
 
-# Escape a string for safe embedding in a JSON value (fallback when jq is unavailable).
-# Handles backslash, double-quote, and JSON-required control character escapes (RFC 8259).
+# 对字符串进行转义，以便安全嵌入 JSON 值中（在 jq 不可用时使用）。
+# 处理反斜杠、双引号，以及 JSON 要求的控制字符转义（RFC 8259）。
 json_escape() {
     local s="$1"
     s="${s//\\/\\\\}"
@@ -226,10 +226,10 @@ json_escape() {
     s="${s//$'\r'/\\r}"
     s="${s//$'\b'/\\b}"
     s="${s//$'\f'/\\f}"
-    # Escape any remaining U+0001-U+001F control characters as \uXXXX.
-    # (U+0000/NUL cannot appear in bash strings and is excluded.)
-    # LC_ALL=C ensures ${#s} counts bytes and ${s:$i:1} yields single bytes,
-    # so multi-byte UTF-8 sequences (first byte >= 0xC0) pass through intact.
+    # 将剩余的 U+0001-U+001F 控制字符转义为 \uXXXX。
+    # （U+0000/NUL 不会出现在 bash 字符串中，因此排除。）
+    # LC_ALL=C 可确保 ${#s} 按字节计数，${s:$i:1} 每次取一个字节，
+    # 从而让多字节 UTF-8 序列（首字节 >= 0xC0）保持原样通过。
     local LC_ALL=C
     local i char code
     for (( i=0; i<${#s}; i++ )); do
@@ -246,28 +246,28 @@ json_escape() {
 check_file() { [[ -f "$1" ]] && echo "  ✓ $2" || echo "  ✗ $2"; }
 check_dir() { [[ -d "$1" && -n $(ls -A "$1" 2>/dev/null) ]] && echo "  ✓ $2" || echo "  ✗ $2"; }
 
-# Resolve a template name to a file path using the priority stack:
+# 按优先级栈将模板名解析为文件路径：
 #   1. .specify/templates/overrides/
-#   2. .specify/presets/<preset-id>/templates/ (sorted by priority from .registry)
+#   2. .specify/presets/<preset-id>/templates/（按 .registry 中的优先级排序）
 #   3. .specify/extensions/<ext-id>/templates/
-#   4. .specify/templates/ (core)
+#   4. .specify/templates/（核心模板）
 resolve_template() {
     local template_name="$1"
     local repo_root="$2"
     local base="$repo_root/.specify/templates"
 
-    # Priority 1: Project overrides
+    # 优先级 1：项目级覆盖
     local override="$base/overrides/${template_name}.md"
     [ -f "$override" ] && echo "$override" && return 0
 
-    # Priority 2: Installed presets (sorted by priority from .registry)
+    # 优先级 2：已安装的 presets（按 .registry 中的优先级排序）
     local presets_dir="$repo_root/.specify/presets"
     if [ -d "$presets_dir" ]; then
         local registry_file="$presets_dir/.registry"
         if [ -f "$registry_file" ] && command -v python3 >/dev/null 2>&1; then
-            # Read preset IDs sorted by priority (lower number = higher precedence).
-            # The python3 call is wrapped in an if-condition so that set -e does not
-            # abort the function when python3 exits non-zero (e.g. invalid JSON).
+            # 读取按优先级排序的 preset ID（数字越小优先级越高）。
+            # python3 调用被包在 if 条件中，这样即使 python3 非零退出
+            # （例如 JSON 非法），也不会因 set -e 直接中止函数。
             local sorted_presets=""
             if sorted_presets=$(SPECKIT_REGISTRY="$registry_file" python3 -c "
 import json, sys, os
@@ -281,15 +281,15 @@ except Exception:
     sys.exit(1)
 " 2>/dev/null); then
                 if [ -n "$sorted_presets" ]; then
-                    # python3 succeeded and returned preset IDs — search in priority order
+                    # python3 成功并返回了 preset ID：按优先级顺序查找
                     while IFS= read -r preset_id; do
                         local candidate="$presets_dir/$preset_id/templates/${template_name}.md"
                         [ -f "$candidate" ] && echo "$candidate" && return 0
                     done <<< "$sorted_presets"
                 fi
-                # python3 succeeded but registry has no presets — nothing to search
+                # python3 成功，但 registry 中没有 presets：无需查找
             else
-                # python3 failed (missing, or registry parse error) — fall back to unordered directory scan
+                # python3 失败（缺失，或 registry 解析失败）：回退到无序目录扫描
                 for preset in "$presets_dir"/*/; do
                     [ -d "$preset" ] || continue
                     local candidate="$preset/templates/${template_name}.md"
@@ -297,7 +297,7 @@ except Exception:
                 done
             fi
         else
-            # Fallback: alphabetical directory order (no python3 available)
+            # 回退：按目录字母序（无 python3 可用）
             for preset in "$presets_dir"/*/; do
                 [ -d "$preset" ] || continue
                 local candidate="$preset/templates/${template_name}.md"
@@ -306,25 +306,24 @@ except Exception:
         fi
     fi
 
-    # Priority 3: Extension-provided templates
+    # 优先级 3：扩展提供的模板
     local ext_dir="$repo_root/.specify/extensions"
     if [ -d "$ext_dir" ]; then
         for ext in "$ext_dir"/*/; do
             [ -d "$ext" ] || continue
-            # Skip hidden directories (e.g. .backup, .cache)
+            # 跳过隐藏目录（例如 .backup、.cache）
             case "$(basename "$ext")" in .*) continue;; esac
             local candidate="$ext/templates/${template_name}.md"
             [ -f "$candidate" ] && echo "$candidate" && return 0
         done
     fi
 
-    # Priority 4: Core templates
+    # 优先级 4：核心模板
     local core="$base/${template_name}.md"
     [ -f "$core" ] && echo "$core" && return 0
 
-    # Template not found in any location.
-    # Return 1 so callers can distinguish "not found" from "found".
-    # Callers running under set -e should use: TEMPLATE=$(resolve_template ...) || true
+    # 在所有位置中都未找到模板。
+    # 返回 1，以便调用方区分“未找到”和“已找到”。
+    # 在 set -e 下调用时，应使用：TEMPLATE=$(resolve_template ...) || true
     return 1
 }
-
